@@ -1,7 +1,6 @@
 import os
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 import joblib
 
@@ -37,8 +36,8 @@ class DataPreprocessor:
         """Aprende y aplica transformaciones sobre el set de entrenamiento."""
         df_cleaned = df.copy()
 
-        # 1. Codificación de variables categóricas (Texto -> Numérico)
-        categorical_cols = df_cleaned.select_dtypes(include=['str', 'category']).columns
+        # 1. CORRECCIÓN CLAVE: Usar 'object' en lugar de 'str' para capturar texto en Pandas
+        categorical_cols = df_cleaned.select_dtypes(include=['object', 'category']).columns
         for col in categorical_cols:
             le = LabelEncoder()
             df_cleaned[col] = le.fit_transform(df_cleaned[col].astype(str))
@@ -74,55 +73,3 @@ class DataPreprocessor:
         os.makedirs(models_dir_path, exist_ok=True)
         joblib.dump(self.scaler, os.path.join(models_dir_path, 'scaler.pkl'))
         joblib.dump(self.encoders, os.path.join(models_dir_path, 'encoders.pkl'))
-
-
-# Bloque de ejecución principal automatizado
-if __name__ == "__main__":
-    print("=== Iniciando el Preprocesamiento de Datos ===")
-
-    # Ruta base siempre desde la raíz del proyecto sin importar desde dónde se corra
-    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    RAW_DIR = os.path.join(BASE_DIR, "data", "raw")
-    PROCESSED_DIR = os.path.join(BASE_DIR, "data", "processed")
-    MODELS_DIR = os.path.join(BASE_DIR, "models")
-
-    # Crear carpetas si no existen
-    os.makedirs(PROCESSED_DIR, exist_ok=True)
-
-    # Instanciar preprocesador
-    preprocessor = DataPreprocessor()
-
-    try:
-        # 1. Cargar datos desde data/raw/
-        df_raw = preprocessor.load_raw_data(RAW_DIR)
-        print(f"-> Datos brutos cargados correctamente. Dimensiones: {df_raw.shape}")
-
-        # 2. Separar en Train y Test antes de transformar (Evita filtrado de datos)
-        X = df_raw.drop(columns=['target'])
-        y = df_raw['target']
-
-        # Se usa stratify=y debido al desbalance detectado en el EDA
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42, stratify=y
-        )
-
-        # Reensamblar conjuntos para aplicar el Pipeline convenientemente
-        train_df = pd.concat([X_train, y_train], axis=1)
-        test_df = pd.concat([X_test, y_test], axis=1)
-
-        # 3. Procesar datos
-        train_processed = preprocessor.fit_transform(train_df)
-        test_processed = preprocessor.transform(test_df)
-
-        # 4. Exportar datasets limpios listos para entrenar las Redes Neuronales
-        train_processed.to_csv(os.path.join(PROCESSED_DIR, "train.csv"), index=False)
-        test_processed.to_csv(os.path.join(PROCESSED_DIR, "test.csv"), index=False)
-        print("-> Archivos 'train.csv' y 'test.csv' exportados exitosamente a 'data/processed/'.")
-
-        # 5. Salvar los transformadores para la API
-        preprocessor.save_artifacts(MODELS_DIR)
-        print("-> Artefactos 'scaler.pkl' y 'encoders.pkl' guardados en 'models/'.")
-        print("\n=== ¡Proceso finalizado con éxito! ===")
-
-    except Exception as e:
-        print(f"\n[ERROR] Ocurrió un fallo en el procesamiento: {e}")
